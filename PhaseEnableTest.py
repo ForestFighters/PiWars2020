@@ -2,7 +2,6 @@
 from approxeng.input.selectbinder import ControllerResource
 import gpiozero
 import time
-import pantilthat
 import VL53L0X
 
 tof = VL53L0X.VL53L0X()
@@ -17,6 +16,11 @@ left_motor = gpiozero.PhaseEnableMotor(22, 27)
 panangle = 0
 tiltangle = 0
 
+pan_servo = gpiozero.AngularServo(21)
+tilt_servo = gpiozero.AngularServo(26)
+
+pan_servo.angle = panangle
+tilt_servo.angle = tiltangle
 #pantilthat.pan(panangle)
 #pantilthat.tilt(tiltangle)
 
@@ -35,21 +39,29 @@ while running:
                     break
                     
                 if joystick.presses.dup:
-                    tiltangle -= 2
-                    #pantilthat.tilt(tiltangle)
+                    tiltangle -= 10
+                    if tiltangle <= -90:
+                        tiltangle = -90
+                    tilt_servo.angle = tiltangle
                     print(tiltangle)    
                 if joystick.presses.ddown:
-                    tiltangle += 2
-                    #pantilthat.tilt(tiltangle)                                     
+                    tiltangle += 10
+                    if tiltangle >= 90:
+                        tiltangle = 90
+                    tilt_servo.angle = tiltangle
                     print(tiltangle)    
                 
                 if joystick.presses.dleft:
                     panangle += 5
-                    #pantilthat.pan(panangle)
+                    if panangle >= 90:
+                            panangle = 90
+                    pan_servo.angle = panangle
                     print(panangle)     
                 if joystick.presses.dright:
                     panangle -= 5
-                    #pantilthat.pan(panangle)
+                    if panangle <= -90:
+                        panangle = -90
+                    pan_servo.angle = panangle
                     print(panangle)     
                                         
                 distance_in_mm = tof.get_distance() # Grab the range in mm
@@ -75,6 +87,13 @@ while running:
                 else :
                     left_motor.stop()
                     right_motor.stop()
+                    
+                if pan_servo.angle == 0:
+                    pan_servo.angle = None
+                    
+                if tilt_servo.angle == 0:
+                    tilt_servo.angle = None
+                                    
                     
                 time.sleep(0.1)
                 
