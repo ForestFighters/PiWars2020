@@ -22,10 +22,10 @@ class Controller():
 	mode = None
 
 	def __init__(self):
-		
+				
 		self.last_text = ''		 
 		self.bot = Robot()
-		self.camera = Camera()
+		self.camera = Camera(64,48)
 		
 		interval = 0.0
 				
@@ -33,6 +33,7 @@ class Controller():
 
 	def run(self):  
 		self.show('Started')					
+		gear = 2
 		running = True
 		while running:	  
 			try:
@@ -50,8 +51,18 @@ class Controller():
 							left_drive = joystick.ly
 							right_drive = joystick.ry		
 							y_data = self.camera.GetYData();
-							self.remote(left_drive, right_drive);
+							self.remote(left_drive, right_drive, gear);
 							
+							if joystick.presses.l1:
+								gear += 0.5
+							if joystick.presses.r1:
+								gear -= 0.5
+							
+							if gear < 1:
+								gear = 1
+							if gear > 5:
+								gear = 5
+									
 							if joystick.presses.dup:
 								self.bot.tilt( -10 )                   
 							if joystick.presses.ddown:
@@ -63,16 +74,23 @@ class Controller():
 								self.bot.pan( 5 )
 							
 							if presses.square:
-								self.show('X pressed since last check')
+								self.show('Y pressed since last check')
 								self.bot.servo_off()
 								self.writePNG("frame001.png",y_data)
 								minmax = self.camera.MinMaxRowwise(y_data)
-								print( minmax )
+								# print( minmax )
 								y_data = self.camera.ExpandContrastRowwise( y_data, minmax )
 								self.writePNG("frame002.png",y_data)
 								y_data = self.camera.Threshold(y_data)
 								self.writePNG("frame003.png",y_data)
-							
+								y_data = self.camera.Slice(y_data)
+								self.writePNG("frame004.png",y_data)							
+								# y_data, contours = self.camera.Contours(y_data)
+								ydata, xTop  = self.camera.CentreTop(y_data)
+								ydata, xBottom  = self.camera.CentreBottom(y_data)
+								self.writePNG("frame005.png",y_data)	
+								steer = self.camera.Steer(xTop,xBottom)
+																							
 							# Select menu option                    
 							time.sleep(INTERVAL)
 			
@@ -86,10 +104,10 @@ class Controller():
 				self.show('Motors off')
 				break
 
-	# Pi Noon, Zombie Shoot, Temple of Doom
-	def remote(self, left_drive, right_drive):
+	# Pi Noon, Zombie Shoot, Temple of Doom, Eco Disaster
+	def remote(self, left_drive, right_drive, gear):
 		self.show("Remote mode")		
-		self.bot.move(left_drive, right_drive)
+		self.bot.move(left_drive, right_drive, gear)
 
 	def maze(self):
 		self.show("Escape Route mode")

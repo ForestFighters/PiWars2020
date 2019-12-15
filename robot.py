@@ -16,9 +16,17 @@ class Robot(object):
 		self.right_motor.stop()		
 		self.left_motor.stop()
 
-	def move(self, left_drive, right_drive):
-		LOGGER.debug("left_drive: {}; right_drive: {}".format(left_drive, right_drive))
+	def move(self, left_drive, right_drive, gear):
+		
+		if (left_drive != 0 or right_drive != 0):
+			LOGGER.debug("left_drive: {}; right_drive: {}; gear: {} ".format(left_drive, right_drive, gear ))
+		
+		if (left_drive < 0 and right_drive > 0) or (left_drive > 0 and right_drive < 0):			
+			gear = 2;
 									 
+		left_drive = left_drive / gear
+		right_drive = right_drive / gear
+												
 		if left_drive > 0:
 			self.left_motor.forward(left_drive)
 		elif left_drive < 0:
