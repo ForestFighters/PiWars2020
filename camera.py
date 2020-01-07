@@ -1,6 +1,6 @@
 import time
 import picamera
-import picamera.array
+import picamera.array 
 import numpy as np
 import cv2 as cv
 
@@ -17,6 +17,20 @@ class Camera(object):
 		
 		# print(self.width, self.height)
 		time.sleep(2)
+		
+	def CaptureContinous( self, rawCapture ):
+		return self.camera.capture_continuous( rawCapture, format = "yuv", use_video_port = True)
+	
+		
+	def GetBGRData(self):
+		bgr_data = np.empty((self.height * self.width * 3), dtype=np.uint8)
+		try:
+			self.camera.capture(bgr_data, 'bgr')
+		except IOError:
+			pass
+		
+		bgr_data =bgr_data.reshape((self.height, self.width, 3))
+		return bgr_data 
 		
 	def GetYData(self):
 		y_data = np.empty((self.height, self.width), dtype=np.uint8)
@@ -50,6 +64,14 @@ class Camera(object):
 		y_data = y_data[((self.height//2) - 5):((self.height//2) + 5), :self.width]
 		return y_data	
 		
+	def Invert(self, y_data):
+		for y in range(self.height):			
+			for x in range(self.width):
+				y_data[ y, x ] = 255 - y_data[ y, x ]				
+		
+		return y_data
+		
+		
 	def Contours(self, y_data):
 		y_data, contours, hierarchy = cv.findContours(y_data,cv.RETR_CCOMP,cv.CHAIN_APPROX_SIMPLE)
 		y_data = cv.drawContours(y_data, contours, 1, (0,0,0), 3)	
@@ -72,49 +94,59 @@ class Camera(object):
 			# Leading edge or edge of field		
 			if (y_data[ y, x ] == white and y_data[ y, x + 1 ] == black) or (y_data[ y, x] == black and startTemp == 0):
 				startTemp = x
-				print("Start {}".format(startTemp))
+				#print("Start {}".format(startTemp))
 			# Trailing edge
 			if y_data[ y, x ] == black and y_data[ y, x + 1 ] == white :
 				endTemp = x
-				print("End {}".format(endTemp))	
+				#print("End {}".format(endTemp))	
 				if endTemp - startTemp > start - end:
 					start = startTemp
 					end = endTemp
 		
 		x = start + ((end - start)//2)
-		print("start={0}, end={1}, x={2}".format(start, end, x))
+		#print("start={0}, end={1}, x={2}".format(start, end, x))
 		return x
 		
-	def CentreTop(self, y_data):
+	def CentreTop(self, y_data, invert = False ):
 		y = 0
-		x = self.Centre(y_data, y)
-		y_data[ y, x] = 255
+		x = self.Centre(y_data, y, invert)
+		y_data[ y, x] = 255 - y_data[ y, x]
 		return y_data, x
 		
-	def CentreBottom(self, y_data):
+	def CentreBottom(self, y_data, invert = False):
 		y = 9
-		x = self.Centre(y_data, y)
-		y_data[ y, x] = 255
+		x = self.Centre(y_data, y, invert)
+		y_data[ y, x] = 255 - y_data[ y, x]
 		return y_data, x
 		
-	def Steer(self, xTop, xBottom):		
-		diff = (self.width//2) - xTop
-		print(" diff = {}".format(diff))
+	#      Line
+	# --- XXXXXXX -----------
+	#            ^ middle
+	#        ^ xTop
+	#        
+	# If diff > 0 then go right
+	#
+	#      Line
+	# ----------- XXXXXXX ---
+	#            ^ middle
+	#                ^ xTop
+	#
+	# If diff < 0 then go left
+	#        
+	def Rate(self, xTop, xBottom):	
+		middle = (self.width//2)	
+		diff =  middle - xTop
+		# print(" diff = {}".format(diff))
 		return diff
 			
 			
 			
-	def Threshold(self, y_data, invert = False):	
-		if invert :
-			black = 255
-			white = 0
-		else:
-			black = 0
-			white = 255
-			
+	def Threshold(self, y_data, threshold = 170):	
+		black = 0
+		white = 255
 		for y in range(self.height):			
-			for x in range(self.width):
-				if y_data[ y, x ] > 170:
+			for x in range(self.width):				
+				if y_data[ y, x ] > threshold:
 					y_data[ y, x ] = white
 				else:
 					y_data[ y, x ] = black

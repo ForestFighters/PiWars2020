@@ -9,12 +9,47 @@ class Robot(object):
 	Lowest possible abstraction of our robots.
 	"""
 	def __init__(self):
-		self.pan_servo = gpiozero.AngularServo(21)
-		self.tilt_servo = gpiozero.AngularServo(26)
-		self.right_motor = gpiozero.PhaseEnableMotor(9, 10)
-		self.left_motor = gpiozero.PhaseEnableMotor(22, 27) 
+		#self.pan_servo = gpiozero.AngularServo(21)
+		#self.tilt_servo = gpiozero.AngularServo(26)
+		#self.right_motor = gpiozero.PhaseEnableMotor(9, 10)
+		#self.left_motor = gpiozero.PhaseEnableMotor(22, 27) 
+		self.pan_servo = gpiozero.AngularServo(22)
+		self.tilt_servo = gpiozero.AngularServo(12)
+		self.right_motor = gpiozero.PhaseEnableMotor(6, 5)
+		self.left_motor = gpiozero.PhaseEnableMotor(27, 13) 
 		self.right_motor.stop()		
 		self.left_motor.stop()
+		
+	def turn(self, diff, gear):
+		
+		left_drive = 1.0
+		right_drive = 1.0
+		
+		# dead zone between -4 and +4
+		#  
+		#      Line
+		# --- XXXXXXX -----------
+		#            ^ middle
+		#        ^ xTop
+		#        
+		# If diff > 0 then go right
+		#
+		#      Line
+		# ----------- XXXXXXX ---
+		#            ^ middle
+		#                ^ xTop
+		#
+		# If diff < 0 then go left
+		#        
+		
+		if( diff > 4 ):
+			right_drive = right_drive - (diff / 100.0)
+		
+		if( diff < -4 ):
+			left_drive = left_drive + (diff / 100.0)
+		
+		self.move( left_drive, right_drive, gear)
+			
 
 	def move(self, left_drive, right_drive, gear):
 		
@@ -22,7 +57,7 @@ class Robot(object):
 			LOGGER.debug("left_drive: {}; right_drive: {}; gear: {} ".format(left_drive, right_drive, gear ))
 		
 		if (left_drive < 0 and right_drive > 0) or (left_drive > 0 and right_drive < 0):			
-			gear = 2;
+			gear = 1;
 									 
 		left_drive = left_drive / gear
 		right_drive = right_drive / gear
