@@ -24,12 +24,17 @@ LOGGER = logging.getLogger(__name__)
 
 class Controller():
 	mode = None
+	hasCamera = False
 
 	def __init__(self):
 				
 		self.last_text = ''		 
 		self.bot = Robot()
-		self.camera = Camera(32,32)
+		try:
+			self.camera = Camera(32,32)
+			hasCamera = True
+		except:
+			hasCamera = False
 		
 		interval = 0.0
 				

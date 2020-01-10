@@ -15,10 +15,18 @@ class Robot(object):
 		#self.left_motor = gpiozero.PhaseEnableMotor(22, 27) 
 		self.pan_servo = gpiozero.AngularServo(22)
 		self.tilt_servo = gpiozero.AngularServo(12)
-		self.right_motor = gpiozero.PhaseEnableMotor(6, 5)
-		self.left_motor = gpiozero.PhaseEnableMotor(27, 13) 
-		self.right_motor.stop()		
-		self.left_motor.stop()
+		M1DIR = 27
+		M1PWM = 13
+		M2DIR = 6
+		M2PWM = 5
+		# self.right_motor = gpiozero.PhaseEnableMotor(M1DIR, M1PWM)
+		# self.left_motor = gpiozero.PhaseEnableMotor(M2DIR, M2PWM) 
+		# self.right_motor.stop()		
+		# self.left_motor.stop()
+		self.right_pwm = gpiozero.PWMOutputDevice(M1PWM)
+		self.right_dir = gpiozero.OutputDevice(M1DIR)
+		self.left_pwm = gpiozero.PWMOutputDevice(M2PWM)
+		self.left_dir = gpiozero.OutputDevice(M2DIR)
 		
 	def turn(self, diff, gear):
 		
@@ -63,18 +71,28 @@ class Robot(object):
 		right_drive = right_drive / gear
 												
 		if left_drive > 0:
-			self.left_motor.forward(left_drive)
+			# self.left_motor.forward(left_drive)			
+			self.left_pwm.value = left_drive
+			self.left_dir.off()
 		elif left_drive < 0:
-			self.left_motor.backward(-left_drive)
+			self.left_pwm.value = abs(left_drive)
+			self.left_dir.on()
 		else:
-			self.left_motor.stop()
+			self.left_pwm.value = 0.0
+			self.left_dir.toggle()
 				
 		if right_drive > 0:
-			self.right_motor.forward(right_drive)
+			# self.right_motor.forward(right_drive)
+			self.right_pwm.value = right_drive
+			self.right_dir.off()
 		elif right_drive < 0:
-			self.right_motor.backward(-right_drive)
+			# self.right_motor.backward(-right_drive)
+			self.right_pwm.value = abs(right_drive)
+			self.right_dir.on()
 		else:
-			self.right_motor.stop()
+			# self.right_motor.stop()
+			self.right_pwm.value = 0.0
+			self.right_dir.toggle()
 	
 	def pan(self, amount):
 		angle = self.pan_servo.angle
@@ -99,5 +117,9 @@ class Robot(object):
 		self.tilt_servo.angle = None
 
 	def stop(self):
-		self.left_motor.stop()
-		self.right_motor.stop()
+		# self.left_motor.stop()
+		# self.right_motor.stop()
+		self.right_pwm.value = 0.0
+		self.left_pwm.value = 0.0
+		self.right_dir.toggle()		
+		self.left_dir.toggle()
