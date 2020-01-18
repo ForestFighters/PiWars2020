@@ -47,7 +47,17 @@ class Controller():
 		
 
 	def run(self):  
-		self.show('Started')					
+		self.show('Started')	
+		cv.namedWindow('image', cv.WND_PROP_FULLSCREEN)
+		cv.setWindowProperty('image',cv.WND_PROP_FULLSCREEN,cv.WINDOW_FULLSCREEN)	
+		menu_img = self.loadMenuImage('/home/pi/Pictures/Menu.jpg')
+		notfound_img = self.loadMenuImage('/home/pi/Pictures/Joystick.jpg')
+		remote_img = self.loadMenuImage('/home/pi/Pictures/Remote-Controlled.jpg')
+		lava_img = self.loadMenuImage('/home/pi/Pictures/Lava-Palava.jpg')
+		mine_img = self.loadMenuImage('/home/pi/Pictures/Minesweeper.jpg')
+		maze_img = self.loadMenuImage('/home/pi/Pictures/Maze.jpg')
+		exit_img = self.loadMenuImage('/home/pi/Pictures/Exit.jpg')
+		halt_img = self.loadMenuImage('/home/pi/Pictures/Halt.jpg')				
 		gear = 2
 		running = True
 		timing = 20000		
@@ -93,54 +103,36 @@ class Controller():
 					if joystick.connected :					
 						# Loop indefinitely
 						while running:
-							presses = joystick.check_presses()
-							if presses.home:
-								self.show('HOME pressed since last check')
-								running = False
-								break
+							presses = joystick.check_presses()							
+							if presses.select:
+								running = self.doMenu( menu, joystick, gear )
 								
-							if presses.select and presses.start:
-								self.show('SELECT and START pressed since last check')
-								self.shutdown()
-								break
-							
-							if presses.square:
-								self.show('Y pressed since last check')
-								self.bot.servo_off()
-								self.straight( joystick, gear )
-								
-							if presses.circle:
-								self.show('A pressed since last check')
-								self.bot.servo_off()
-								self.mine( joystick, gear )
-									
-							left_drive = joystick.ly
-							right_drive = joystick.ry									
-							self.bot.move(left_drive, right_drive, gear)
-														
-							prev = gear
-							if joystick.presses.l1:
-								gear += 0.5								
-							if joystick.presses.r1:								
-								gear -= 0.5
-															
-							if gear < 1:
-								gear = 1
-							if gear > 5:
-								gear = 5
-								
-							if gear != prev:
-								print(" Gear = {}".format(gear))
-									
-							if joystick.presses.dup:
-								self.bot.tilt( -10 )                   
-							if joystick.presses.ddown:
-								self.bot.tilt( 10 )
-
+							prev = menu 
 							if joystick.presses.dright:
-								self.bot.pan( -5 )                   
+								menu += 1                   
+								if menu > MAX_MENU:
+									menu = MIN_MENU
+										
 							if joystick.presses.dleft:
-								self.bot.pan( 5 )
+								menu -= 1
+								if menu < MIN_MENU:
+									menu = MAX_MENU
+								
+							if prev != menu:
+								print(" Menu = {}".format(menu))
+												
+								if menu == 1:
+									self.showMenuImage(remote_img)			
+								if menu == 2:						
+									self.showMenuImage(lava_img)												
+								if menu == 3:			
+									self.showMenuImage(mine_img)												
+								if menu == 4:			
+									self.showMenuImage(maze_img)												
+								if menu == 5:			
+									self.showMenuImage(exit_img)												
+								if menu == 6:
+									self.showMenuImage(halt_img)
 							
 							if hasTOF:
 								# Read the Euler angles for heading, roll, pitch (all in degrees).
@@ -164,6 +156,27 @@ class Controller():
 				self.show('Motors off')
 				break
 
+		cv.destroyAllWindows()
+		
+	def doMenu(self, menu, joystick, gear ):
+		if menu == 1:
+			self.remote( joystick, gear )	
+			return True
+		if menu == 2:			
+			self.straight( joystick, gear )
+			return True
+		if menu == 3:			
+			self.mine( joystick, gear )
+			return True
+		if menu == 4:			
+			return True
+		if menu == 5:			
+			return False
+		if menu == 6:
+			self.shutdown()
+			# We don't expect to get here
+			return False			
+			
 	def shutdown(self):
 		self.show("Shutdown")		
 		os.system("sudo halt")
@@ -249,6 +262,14 @@ class Controller():
 		end = seconds()
 		print("Frames: {0} in {1} seconds or {2} frames per second".format(frame, end-start, frame / (end-start)))
 
+	def showMenuImage(self, menu_img):
+		cv.imshow('image',menu_img)
+		cv.waitKey(10)
+		
+	def loadMenuImage(self, fileName):
+		img = cv.imread(fileName,cv.IMREAD_COLOR)
+		img = cv.resize(img,(1280,800), interpolation = cv.INTER_CUBIC)			
+		return img
 		
 	def writePNG(self, filename, y_data):
 		imgSize = (32,32)
