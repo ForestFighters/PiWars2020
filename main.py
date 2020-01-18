@@ -30,20 +30,21 @@ LOGGER = logging.getLogger(__name__)
 class Controller():
 	mode = None
 	hasCamera = False
-
+	
 	def __init__(self):
 				
 		self.last_text = ''		 
 		self.bot = Robot()
 		try:
 			self.camera = Camera(32,32)
-			hasCamera = True
+			self.hasCamera = True
 		except:
-			hasCamera = False
-			
+		self.hasCamera = False
+
 		interval = 0.0
 				
 		super().__init__()
+		
 
 	def run(self):  
 		self.show('Started')	
@@ -56,7 +57,7 @@ class Controller():
 		mine_img = self.loadMenuImage('/home/pi/Pictures/Minesweeper.jpg')
 		maze_img = self.loadMenuImage('/home/pi/Pictures/Maze.jpg')
 		exit_img = self.loadMenuImage('/home/pi/Pictures/Exit.jpg')
-		halt_img = self.loadMenuImage('/home/pi/Pictures/Halt.jpg')
+		halt_img = self.loadMenuImage('/home/pi/Pictures/Halt.jpg')				
 		gear = 2
 		menu = 1		
 		MIN_MENU = 1
@@ -80,7 +81,7 @@ class Controller():
 		except:
 			print("Problem init TOF")
 			hasTOF = False
-			
+
 		# Raspberry Pi configuration with serial UART and RST connected to GPIO 18:
 		bno = BNO055.BNO055(serial_port='/dev/serial0', rst=7)
 		while True:
@@ -97,7 +98,7 @@ class Controller():
 		print('Bootloader version: {0}'.format(bl))
 		print('Accelerometer ID:   0x{0:02X}'.format(accel))
 		print('Magnetometer ID:    0x{0:02X}'.format(mag))
-		print('Gyroscope ID:       0x{0:02X}\n'.format(gyro)
+		print('Gyroscope ID:       0x{0:02X}\n'.format(gyro))
 		
 		while running:	  
 			try:
@@ -136,8 +137,8 @@ class Controller():
 								if menu == 5:			
 									self.showMenuImage(exit_img)												
 								if menu == 6:
-									self.showMenuImage(halt_img)			
-														
+									self.showMenuImage(halt_img)
+
 							if hasTOF:
 								# Read the Euler angles for heading, roll, pitch (all in degrees).
 								heading, roll, pitch = bno.read_euler()
@@ -146,7 +147,7 @@ class Controller():
 									print("%d mm, %d degrees" % (distance, heading))
 
 							time.sleep(timing/1000000.00)
-																										
+																					
 							# Select menu option                    
 							# time.sleep(INTERVAL)
 			
@@ -162,8 +163,7 @@ class Controller():
 				break
 				
 		cv.destroyAllWindows()
-
-
+		
 	def doMenu(self, menu, joystick, gear ):
 		if menu == 1:
 			self.remote( joystick, gear )	

@@ -1,0 +1,3 @@
+cd /home/pi/PiWars2020
+python main.py
+
