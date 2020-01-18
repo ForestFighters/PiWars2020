@@ -14,7 +14,12 @@ from robot import Robot
 from approxeng.input.selectbinder import ControllerResource
 from argparse import ArgumentParser
 import logging
+import os
 from time import sleep
+
+from Adafruit_BNO055 import BNO055
+import VL53L0X
+
 
 seconds = lambda: int(round(time.time()))
 
@@ -25,25 +30,62 @@ LOGGER = logging.getLogger(__name__)
 class Controller():
 	mode = None
 	hasCamera = False
-
+	
 	def __init__(self):
 				
 		self.last_text = ''		 
 		self.bot = Robot()
 		try:
 			self.camera = Camera(32,32)
-			hasCamera = True
+			self.hasCamera = True
 		except:
-			hasCamera = False
+			self.hasCamera = False
 		
 		interval = 0.0
 				
 		super().__init__()
+		
 
 	def run(self):  
 		self.show('Started')					
 		gear = 2
 		running = True
+		timing = 20000		
+		
+		try:	
+			# Create a VL53L0X object
+			tof = VL53L0X.VL53L0X()
+			# Start ranging
+			# tof.start_ranging(VL53L0X.Vl53l0xAccuracyMode.BETTER)
+			tof.start_ranging(VL53L0X.VL53L0X_HIGH_SPEED_MODE)
+
+			timing = tof.get_timing()
+			if timing < 20000:
+				timing = 20000
+			print("Timing %d ms" % (timing/1000))
+			hasTOF = True
+		except:
+			print("Problem init TOF")
+			hasTOF = False
+				
+		# Raspberry Pi configuration with serial UART and RST connected to GPIO 18:
+		bno = BNO055.BNO055(serial_port='/dev/serial0', rst=7)
+		while True:
+			try:
+				bno.begin()
+				break
+			except:
+				print("BNO Error")				
+				#raise RuntimeError('Failed to initialize BNO055! Is the sensor connected?')
+				
+		# Print BNO055 software revision and other diagnostic data.
+		sw, bl, accel, mag, gyro = bno.get_revision()
+		print('Software version:   {0}'.format(sw))
+		print('Bootloader version: {0}'.format(bl))
+		print('Accelerometer ID:   0x{0:02X}'.format(accel))
+		print('Magnetometer ID:    0x{0:02X}'.format(mag))
+		print('Gyroscope ID:       0x{0:02X}\n'.format(gyro))
+						
 		while running:	  
 			try:
 				self.show('Press CTRL+C to quit')
@@ -55,6 +97,11 @@ class Controller():
 							if presses.home:
 								self.show('HOME pressed since last check')
 								running = False
+								break
+								
+							if presses.select and presses.start:
+								self.show('SELECT and START pressed since last check')
+								self.shutdown()
 								break
 							
 							if presses.square:
@@ -94,6 +141,15 @@ class Controller():
 								self.bot.pan( -5 )                   
 							if joystick.presses.dleft:
 								self.bot.pan( 5 )
+							
+							if hasTOF:
+								# Read the Euler angles for heading, roll, pitch (all in degrees).
+								heading, roll, pitch = bno.read_euler()
+								distance = tof.get_distance()
+								if distance > 0:
+									print("%d mm, %d degrees" % (distance, heading))
+
+							time.sleep(timing/1000000.00)
 																							
 							# Select menu option                    
 							# time.sleep(INTERVAL)
@@ -108,6 +164,10 @@ class Controller():
 				self.show('Motors off')
 				break
 
+	def shutdown(self):
+		self.show("Shutdown")		
+		os.system("sudo halt")
+		
 	# Pi Noon, Zombie Shoot, Temple of Doom, Eco Disaster
 	def remote(self, left_drive, right_drive, gear):
 		self.show("Remote mode")		
