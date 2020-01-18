@@ -14,7 +14,9 @@ class Robot(object):
 		#self.right_motor = gpiozero.PhaseEnableMotor(9, 10)
 		#self.left_motor = gpiozero.PhaseEnableMotor(22, 27) 
 		self.pan_servo = gpiozero.AngularServo(22)
-		self.tilt_servo = gpiozero.AngularServo(12)
+		self.tilt_servo = gpiozero.AngularServo(12)		
+		self.servo_off()
+		
 		M1DIR = 27
 		M1PWM = 13
 		M2DIR = 6

@@ -14,7 +14,12 @@ from robot import Robot
 from approxeng.input.selectbinder import ControllerResource
 from argparse import ArgumentParser
 import logging
+import os
 from time import sleep
+
+from Adafruit_BNO055 import BNO055
+import VL53L0X
+
 
 seconds = lambda: int(round(time.time()))
 
@@ -35,71 +40,119 @@ class Controller():
 			hasCamera = True
 		except:
 			hasCamera = False
-		
+			
 		interval = 0.0
 				
 		super().__init__()
 
 	def run(self):  
-		self.show('Started')					
+		self.show('Started')	
+		cv.namedWindow('image', cv.WND_PROP_FULLSCREEN)
+		cv.setWindowProperty('image',cv.WND_PROP_FULLSCREEN,cv.WINDOW_FULLSCREEN)	
+		menu_img = self.loadMenuImage('/home/pi/Pictures/Menu.jpg')
+		notfound_img = self.loadMenuImage('/home/pi/Pictures/Joystick.jpg')
+		remote_img = self.loadMenuImage('/home/pi/Pictures/Remote-Controlled.jpg')
+		lava_img = self.loadMenuImage('/home/pi/Pictures/Lava-Palava.jpg')
+		mine_img = self.loadMenuImage('/home/pi/Pictures/Minesweeper.jpg')
+		maze_img = self.loadMenuImage('/home/pi/Pictures/Maze.jpg')
+		exit_img = self.loadMenuImage('/home/pi/Pictures/Exit.jpg')
+		halt_img = self.loadMenuImage('/home/pi/Pictures/Halt.jpg')
 		gear = 2
+		menu = 1		
+		MIN_MENU = 1
+		MAX_MENU = 6
+		
 		running = True
+		timing = 20000
+		
+		try:	
+			# Create a VL53L0X object
+			tof = VL53L0X.VL53L0X()
+			# Start ranging
+			# tof.start_ranging(VL53L0X.Vl53l0xAccuracyMode.BETTER)
+			tof.start_ranging(VL53L0X.VL53L0X_HIGH_SPEED_MODE)
+
+			timing = tof.get_timing()
+			if timing < 20000:
+				timing = 20000
+			print("Timing %d ms" % (timing/1000))
+			hasTOF = True
+		except:
+			print("Problem init TOF")
+			hasTOF = False
+			
+		# Raspberry Pi configuration with serial UART and RST connected to GPIO 18:
+		bno = BNO055.BNO055(serial_port='/dev/serial0', rst=7)
+		while True:
+			try:
+				bno.begin()
+				break
+			except:
+				print("BNO Error")				
+				#raise RuntimeError('Failed to initialize BNO055! Is the sensor connected?')
+				
+		# Print BNO055 software revision and other diagnostic data.
+		sw, bl, accel, mag, gyro = bno.get_revision()
+		print('Software version:   {0}'.format(sw))
+		print('Bootloader version: {0}'.format(bl))
+		print('Accelerometer ID:   0x{0:02X}'.format(accel))
+		print('Magnetometer ID:    0x{0:02X}'.format(mag))
+		print('Gyroscope ID:       0x{0:02X}\n'.format(gyro)
+		
 		while running:	  
 			try:
 				self.show('Press CTRL+C to quit')
+				self.showMenuImage(menu_img)
 				with ControllerResource() as joystick: 
 					if joystick.connected :					
 						# Loop indefinitely
 						while running:
-							presses = joystick.check_presses()
-							if presses.home:
-								self.show('HOME pressed since last check')
-								running = False
-								break
-							
-							if presses.square:
-								self.show('Y pressed since last check')
-								self.bot.servo_off()
-								self.straight( joystick, gear )
+							presses = joystick.check_presses()							
+							if presses.select:
+								running = self.doMenu( menu, joystick, gear )
 								
-							if presses.circle:
-								self.show('A pressed since last check')
-								self.bot.servo_off()
-								self.mine( joystick, gear )
-									
-							left_drive = joystick.ly
-							right_drive = joystick.ry									
-							self.bot.move(left_drive, right_drive, gear)
-														
-							prev = gear
-							if joystick.presses.l1:
-								gear += 0.5								
-							if joystick.presses.r1:								
-								gear -= 0.5
-															
-							if gear < 1:
-								gear = 1
-							if gear > 5:
-								gear = 5
-								
-							if gear != prev:
-								print(" Gear = {}".format(gear))
-									
-							if joystick.presses.dup:
-								self.bot.tilt( -10 )                   
-							if joystick.presses.ddown:
-								self.bot.tilt( 10 )
-
+							prev = menu 
 							if joystick.presses.dright:
-								self.bot.pan( -5 )                   
+								menu += 1                   
+								if menu > MAX_MENU:
+									menu = MIN_MENU
+										
 							if joystick.presses.dleft:
-								self.bot.pan( 5 )
-																							
+								menu -= 1
+								if menu < MIN_MENU:
+									menu = MAX_MENU
+								
+							if prev != menu:
+								print(" Menu = {}".format(menu))
+												
+								if menu == 1:
+									self.showMenuImage(remote_img)			
+								if menu == 2:						
+									self.showMenuImage(lava_img)												
+								if menu == 3:			
+									self.showMenuImage(mine_img)												
+								if menu == 4:			
+									self.showMenuImage(maze_img)												
+								if menu == 5:			
+									self.showMenuImage(exit_img)												
+								if menu == 6:
+									self.showMenuImage(halt_img)			
+														
+							if hasTOF:
+								# Read the Euler angles for heading, roll, pitch (all in degrees).
+								heading, roll, pitch = bno.read_euler()
+								distance = tof.get_distance()
+								if distance > 0:
+									print("%d mm, %d degrees" % (distance, heading))
+
+							time.sleep(timing/1000000.00)
+																										
 							# Select menu option                    
 							# time.sleep(INTERVAL)
 			
 			except IOError:
 					LOGGER.info('Unable to find joystick')
+					self.showMenuImage(notfound_img)
 					time.sleep(4.0)
 					
 			except KeyboardInterrupt:
@@ -107,13 +160,77 @@ class Controller():
 				self.bot.move(0, 0)
 				self.show('Motors off')
 				break
+				
+		cv.destroyAllWindows()
 
-	# Pi Noon, Zombie Shoot, Temple of Doom, Eco Disaster
-	def remote(self, left_drive, right_drive, gear):
-		self.show("Remote mode")		
-		self.bot.move(left_drive, right_drive, gear)
 
-	def maze(self):
+	def doMenu(self, menu, joystick, gear ):
+		if menu == 1:
+			self.remote( joystick, gear )	
+			return True
+		if menu == 2:			
+			self.straight( joystick, gear )
+			return True
+		if menu == 3:			
+			self.mine( joystick, gear )
+			return True
+		if menu == 4:			
+			return True
+		if menu == 5:			
+			return False
+		if menu == 6:
+			self.shutdown()
+			# We don't expect to get here
+			return False			
+			
+	def shutdown(self):
+		self.show("Shutdown")		
+		os.system("sudo halt")		
+				
+	# Pi Noon, Zombie Shoot, Temple of Doom, Eco Disaster	
+	def remote(self, joystick, gear):
+		
+		self.show("Remote mode")
+					
+		while True:		
+			presses = joystick.check_presses()
+			if presses.home:
+				self.show('HOME pressed since last check')
+				running = False
+				break
+
+
+			left_drive = joystick.ly
+			right_drive = joystick.ry									
+			self.bot.move(left_drive, right_drive, gear)
+
+			if joystick.presses.dup:
+				self.bot.tilt( -10 )                   
+			if joystick.presses.ddown:
+				self.bot.tilt( 10 )
+
+			if joystick.presses.dright:
+				self.bot.pan( -5 )                   
+			if joystick.presses.dleft:
+				self.bot.pan( 5 )
+				
+			prev = gear
+			if joystick.presses.l1:
+				gear += 0.5								
+			if joystick.presses.r1:									
+				gear -= 0.5
+											
+			if gear < 1:
+				gear = 1
+			if gear > 5:
+				gear = 5
+				
+			if gear != prev:
+				print(" Gear = {}".format(gear))
+				
+			self.bot.move(left_drive, right_drive, gear)			
+
+	def maze(self, joystick):
 		self.show("Escape Route mode")
 		
 	def mine(self, joystick, gear):
@@ -189,6 +306,14 @@ class Controller():
 		end = seconds()
 		print("Frames: {0} in {1} seconds or {2} frames per second".format(frame, end-start, frame / (end-start)))
 
+	def showMenuImage(self, menu_img):
+		cv.imshow('image',menu_img)
+		cv.waitKey(10)
+		
+	def loadMenuImage(self, fileName):
+		img = cv.imread(fileName,cv.IMREAD_COLOR)
+		img = cv.resize(img,(1280,800), interpolation = cv.INTER_CUBIC)			
+		return img
 		
 	def writePNG(self, filename, y_data):
 		imgSize = (32,32)
@@ -204,7 +329,7 @@ class Controller():
 		if text != self.last_text:
 			print(text)
 			LOGGER.debug(text)
-			self.last_text = text
+			self.last_text = text	
 
 if __name__ == '__main__':
     logging.basicConfig(level=logging.ERROR)
