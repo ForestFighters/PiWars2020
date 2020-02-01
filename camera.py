@@ -1,26 +1,41 @@
 import time
-import picamera
-import picamera.array 
+#import picamera
+#import picamera.array 
 import numpy as np
 import cv2 as cv
+
+from picamera import PiCamera
+from picamera.array import PiRGBArray
+from picamera.array import PiYUVArray
 
 
 class Camera(object):
 	
 	def __init__(self, w = 32, h = 32 ):
-		self.width = w
-		self.height = h
-		self.camera = picamera.PiCamera(
-			resolution=(self.width, self.height),
-			framerate=32,
-			sensor_mode=5)
 		
-		# print(self.width, self.height)
-		time.sleep(2)
-		
+		try :
+			self.width = w
+			self.height = h
+			self.camera = PiCamera(
+				resolution=(self.width, self.height),
+				framerate=90,
+				sensor_mode=7,
+				)
+			
+			self.camera.rotation = 180
+			time.sleep(2)
+			self.hasCamera = True
+		except:
+			print("Problem init TOF")
+			self.hasCamera = False
+
+	def hasCamera( self ):
+		return self.hasCamera
+					
 	def CaptureContinous( self, rawCapture ):
-		return self.camera.capture_continuous( rawCapture, format = "yuv", use_video_port = True)
-	
+		if self.hasCamera:
+			return self.camera.capture_continuous( rawCapture, format = "bgr", use_video_port = True)
+		return None
 		
 	def GetBGRData(self):
 		bgr_data = np.empty((self.height * self.width * 3), dtype=np.uint8)
@@ -76,6 +91,13 @@ class Camera(object):
 		y_data, contours, hierarchy = cv.findContours(y_data,cv.RETR_CCOMP,cv.CHAIN_APPROX_SIMPLE)
 		y_data = cv.drawContours(y_data, contours, 1, (0,0,0), 3)	
 		return y_data, contours
+		
+	def Brightness(self):
+		return self.camera.brightness
+		
+	def SetBrightness(self, value):
+		self.camera.brightness = value
+		return self.camera.brightness
 		
 	def Centre(self, y_data, y, invert = False):
 		if invert :
