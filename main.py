@@ -401,76 +401,109 @@ class Controller():
 		colour = np.array([0, 0, 0])
 		
 		brightness = self.camera.Brightness
+		running = False
 		
-		for frame in self.camera.CaptureContinous(rawCapture):
-			presses = joystick.check_presses()
-			
-			yPos = self.h - int(((joystick.ly + 1) * self.h)/2)
-			xPos = int(((joystick.lx + 1) * self.w)/2)
-			
-			yPos = min(self.h - 1, yPos)
-			xPos = min(self.w - 1, xPos)
-			
-			brightness = self.camera.SetBrightness(int(((joystick.ry + 1) * 100) /2))
-			
-			if presses.home:				
-				running = False
-				return
-			if presses.start:				
-				running = False
-				break
-			if presses.triangle:
-				showMask = True
-			if presses.cross:
-				showMask = False
-			if presses.circle:
-				colour = imgHSV[yPos, xPos];
-				print("xPos,yPos: {0},{1}   Colour: {2}".format(xPos,yPos,colour))
-				lower_red[0] = max(0,colour[0] - 10)
-				upper_red[0] = min(179,colour[0] + 10)
-				lower_red[1] = max(0,colour[1] - 10)
-				upper_red[1] = min(255,colour[1] + 10)
-				lower_red[2] = max(0,colour[2] - 20)
-				upper_red[2] = min(255,colour[2] + 20)
-											
-				
-			# Take image
-			image = frame.array				
-			# Convert to  HSV
-			imgHSV = cv.cvtColor(image, cv.COLOR_BGR2HSV)
-			if showMask:
-				self.camera.SetBrightness(brightness)				
-				imgMask = cv.inRange(imgHSV, lower_red, upper_red)
-				self.showMenuImage(imgMask)		
-			else:
-				# Draw a circle at the joystick position
-				cv.circle(image,(xPos,yPos), 3, (255,255,255), -1)				
-				# Display for calibration
-				self.showMenuImage(image)		
-				
-			rawCapture.truncate(0)	
-			
+		xPos = 0
+		yPos = 0
+		angle = -90
 		
 		frameNo = 1.0;
 		start = seconds()	
-		for frame in self.camera.CaptureContinous(rawCapture):	
-			
+		for frame in self.camera.CaptureContinous(rawCapture):
 			presses = joystick.check_presses()
 			if presses.home:				
 				running = False
-				break
+				return
 				
-			image = frame.array	
-			# do stuff			
-			imgHSV = cv.cvtColor(image, cv.COLOR_BGR2HSV)   # Convert the captured frame from BGR to HSV
+			if presses.start:
+				xPos = -1
+				yPos = -1	
+				angle = -90						
+				running = True				
 			
-			# define range of red color in HSV
+			yPos = self.h - int(((joystick.ly + 1) * self.h)/2)
+			xPos = int(((joystick.lx + 1) * self.w)/2)			
+			yPos = min(self.h - 1, yPos)
+			xPos = min(self.w - 1, xPos)			
+					
+			if running == False:			
+				brightness = self.camera.SetBrightness(int(((joystick.ry + 1) * 100) /2))
 			
-			# Threshold the HSV image to get only red colors
-			imgMask = cv.inRange(imgHSV, lower_red, upper_red)
-			
-			frameNo += 1								
-			self.showMenuImage(imgMask)		
+				if presses.triangle:
+					showMask = True
+				if presses.cross:
+					showMask = False
+				if presses.circle:
+					colour = imgHSV[yPos, xPos];
+					print("xPos,yPos: {0},{1}   Colour: {2}".format(xPos,yPos,colour))
+					lower_red[0] = max(0,colour[0] - 10)
+					upper_red[0] = min(179,colour[0] + 10)
+					lower_red[1] = max(0,colour[1] - 10)
+					upper_red[1] = min(255,colour[1] + 10)
+					lower_red[2] = max(0,colour[2] - 20)
+					upper_red[2] = min(255,colour[2] + 20)
+																				
+				# Take image
+				image = frame.array				
+				# Convert to  HSV
+				imgHSV = cv.cvtColor(image, cv.COLOR_BGR2HSV)
+				if showMask:
+					self.camera.SetBrightness(brightness)				
+					imgMask = cv.inRange(imgHSV, lower_red, upper_red)
+					kernel = np.ones((3,3), np.uint8)
+					imgMask = cv.erode(imgMask, kernel, iterations=5)
+					imgMask = cv.dilate(imgMask, kernel, iterations=9)	
+					self.showMenuImage(imgMask)		
+				else:
+					# Draw a circle at the joystick position
+					cv.circle(image,(xPos,yPos), 3, (255,255,255), -1)				
+					# Display for calibration
+					self.showMenuImage(image)		
+			else:
+							
+				image = frame.array	
+				# do stuff			
+				imgHSV = cv.cvtColor(image, cv.COLOR_BGR2HSV)   # Convert the captured frame from BGR to HSV
+				
+				# define range of red color in HSV
+				imgMask = cv.inRange(imgHSV, lower_red, upper_red)
+				
+				# Threshold the HSV image to get only red colors			
+				kernel = np.ones((3,3), np.uint8)
+				imgMask = cv.erode(imgMask, kernel, iterations=5)
+				imgMask = cv.dilate(imgMask, kernel, iterations=9)	
+				
+				imgMask, contours_blk, hierarchy_blk = cv.findContours(imgMask,cv.RETR_TREE,cv.CHAIN_APPROX_SIMPLE)
+	
+				contours_blk_len = len(contours_blk)				
+				xPos = -1
+				yPos = -1	
+				if contours_blk_len > 0 :
+					for con_num in range(contours_blk_len):
+						area = cv.contourArea(contours_blk[con_num]);	
+						print("Index: {0}  Area: {1}".format(con_num, area))						
+						if area > 1500:							
+							cnt = contours_blk[con_num]
+							#x,y,w,h = cv.boundingRect(cnt)
+							#cv.rectangle(imgMask,(x,y),(x+w,y+h),(0,255,0),2)
+							M = cv.moments(cnt)
+							xPos = int(M["m10"] / M["m00"])
+							yPos = int(M["m01"] / M["m00"])
+							cv.circle(imgMask,(xPos,yPos), 3, (0,0,255), -1)
+							break
+				
+				print("xPos: {0}  yPos: {1}".format(xPos, yPos))
+				# Can't see red, start scanning			
+				if xPos == -1 and yPos == -1:
+					self.bot.tilt_angle(angle)
+					angle = angle + 10
+				else:
+					print("Found")					
+					self.bot.servo_off()
+					
+				self.showMenuImage(imgMask)		
+				
+			frameNo += 1											
 			rawCapture.truncate(0)	
 	
 		end = seconds()
@@ -528,9 +561,9 @@ class Controller():
 				canditates=[]
 				off_bottom = 0	   
 				for con_num in range(contours_blk_len):		
-					blackbox = cv2.minAreaRect(contours_blk[con_num])
+					blackbox = cv.minAreaRect(contours_blk[con_num])
 					(x_min, y_min), (w_min, h_min), ang = blackbox		
-					box = cv2.boxPoints(blackbox)
+					box = cv.boxPoints(blackbox)
 					(x_box,y_box) = box[0]
 					if y_box > (h - 2) :		 
 						off_bottom += 1
@@ -547,10 +580,10 @@ class Controller():
 							
 					canditates_off_bottom = sorted(canditates_off_bottom)         
 					(total_distance,con_highest) = canditates_off_bottom[0]         
-					blackbox = cv2.minAreaRect(contours_blk[con_highest])	   
+					blackbox = cv.minAreaRect(contours_blk[con_highest])	   
 				elif contours_blk_len > 1:		
 					(y_highest,con_highest,x_min, y_min) = canditates[contours_blk_len-1]		
-					blackbox = cv2.minAreaRect(contours_blk[con_highest])	
+					blackbox = cv.minAreaRect(contours_blk[con_highest])	
 				
 				
 			(x_min, y_min), (w_min, h_min), ang = blackbox

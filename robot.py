@@ -202,6 +202,12 @@ class Robot(object):
 			print(angle)                  
 			self.first_servo.angle = angle	
 			self.first_angle = angle
+			
+	def tilt_angle(self, angle):		
+		if angle >= -90 and angle <= 90: 
+			print(angle)                  
+			self.first_servo.angle = angle	
+			self.first_angle = angle
 								
 	def trigger(self, angle):		
 		if angle >= -90 and angle <= 90:                   
