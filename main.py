@@ -21,6 +21,12 @@ from time import sleep
 from picamera.array import PiRGBArray
 from picamera.array import PiYUVArray
 
+# COLOURS = {
+    # "red": ([-10,80,30],[10,255,255]),
+    # "green": ([50,80,30],[70,255,255]),
+    # "blue": ([110,80,30],[130,255,255]),
+# }
+
 
 seconds = lambda: int(round(time.time()))
 
@@ -57,10 +63,11 @@ class Controller():
 		maze_img = self.loadMenuImage('/home/pi/Pictures/Maze.jpg')
 		exit_img = self.loadMenuImage('/home/pi/Pictures/Exit.jpg')
 		halt_img = self.loadMenuImage('/home/pi/Pictures/Halt.jpg')				
+		test_img = self.loadMenuImage('/home/pi/Pictures/Testing.jpg')
 		gear = 2
 		menu = 1		
 		MIN_MENU = 1
-		MAX_MENU = 6
+		MAX_MENU = 7
 		
 		running = True
 		timing = 20000		
@@ -81,7 +88,10 @@ class Controller():
 							if presses.select:
 								# Ensure we have the camera attached for this challenges
 								if (menu == 2 or menu == 3 or menu == 4) and (self.camera.hasCamera == False):
-									self.showMenuImage(camera_img)									
+									self.showMenuImage(camera_img)	
+								elif menu == 7:									
+									self.testing(test_img)
+									prev = 7								
 								else:
 									self.showMenuImage(menu_img)
 									running = self.doMenu( menu, joystick, gear )								
@@ -112,6 +122,8 @@ class Controller():
 									self.showMenuImage(exit_img)												
 								if menu == 6:
 									self.showMenuImage(halt_img)									
+								if menu == 7:
+									self.showMenuImage(test_img)
 									
 							prev = menu 								
 
@@ -151,12 +163,25 @@ class Controller():
 		if menu == 6:
 			self.shutdown()
 			# We don't expect to get here
-			return False			
+			return False	
+		if menu == 7:	
+			self.testing()	
+			return True
+			
 			
 	def shutdown(self):
 		self.show("Shutdown")		
 		os.system("sudo halt")		
-				
+		
+	def testing(self, img):
+		temp = self.bot.temperature()
+		volts = self.bot.battery()
+	
+		cv.putText(img,"            ",(50, 60),cv.FONT_HERSHEY_TRIPLEX, 2, (0, 0, 255), 5)	
+		cv.putText(img,"            ",(50, 120),cv.FONT_HERSHEY_TRIPLEX, 2, (0, 0, 255), 5)
+		cv.putText(img,temp,(50, 60), cv.FONT_HERSHEY_TRIPLEX, 2, (0, 0, 255), 5)	
+		cv.putText(img,volts,(50, 120), cv.FONT_HERSHEY_TRIPLEX, 2, (0, 0, 255), 5)
+		self.showMenuImage(img)
 				
 	# Pi Noon, Zombie Shoot, Temple of Doom, Eco Disaster	
 	def remoteNoCamera(self, joystick, gear):
@@ -394,18 +419,25 @@ class Controller():
 		rawCapture = PiRGBArray( self.camera, size=(self.w, self.h))	
 		time.sleep(0.1)
 		
-		lower_red = np.array([21, 173, 92])
-		upper_red = np.array([51, 203, 122])
 		
-		showMask = False	
+		
+		showImage = 0
 		colour = np.array([0, 0, 0])
+		lower = np.array([112, 255, 20])
+		upper = np.array([112, 255, 40])
 		
+		#colour_arrays = COLOURS["red"]
+		#lower = np.array(colour_arrays[0], dtype = "uint8")
+		#upper = np.array(colour_arrays[1], dtype = "uint8")
+
 		brightness = self.camera.Brightness
 		running = False
+		mode = 0
 		
 		xPos = 0
 		yPos = 0
 		angle = -90
+		diff = 10
 		
 		frameNo = 1.0;
 		start = seconds()	
@@ -413,65 +445,97 @@ class Controller():
 			presses = joystick.check_presses()
 			if presses.home:				
 				running = False
-				return
+				break
 				
 			if presses.start:
 				xPos = -1
 				yPos = -1	
-				angle = -90						
-				running = True				
+				angle = -90	
+				mode = 0					
+				running = True
+			
+			if joystick.presses.dup:
+				self.bot.tilt( -10 )
+				time.sleep(0.5) 				                  
+			elif joystick.presses.ddown:
+				self.bot.tilt( 10 )		
+				time.sleep(0.5)
+			elif joystick.presses.dright:
+				self.bot.pan( -5 )                   
+				time.sleep(0.5)
+			elif joystick.presses.dleft:
+				self.bot.pan( 5 )		
+				time.sleep(0.5)
+			else:
+				self.bot.servo_off()
 			
 			yPos = self.h - int(((joystick.ly + 1) * self.h)/2)
 			xPos = int(((joystick.lx + 1) * self.w)/2)			
 			yPos = min(self.h - 1, yPos)
-			xPos = min(self.w - 1, xPos)			
-					
+			xPos = min(self.w - 1, xPos)	
+			
+			# Take image
+			image = frame.array				
+			imgHSV = cv.cvtColor(image, cv.COLOR_RGB2HSV)   # Convert the captured frame from RGB to HSV ( with blue in the red position )
+			
+			# Get heading and distance
+			heading, roll, pitch = self.bot.readEuler()			
+			distance = self.bot.getDistance()
+						
 			if running == False:			
 				brightness = self.camera.SetBrightness(int(((joystick.ry + 1) * 100) /2))
 			
+				if presses.square:
+					showImage = 2
 				if presses.triangle:
-					showMask = True
+					showImage = 1
 				if presses.cross:
-					showMask = False
+					showImage = 0
 				if presses.circle:
 					colour = imgHSV[yPos, xPos];
 					print("xPos,yPos: {0},{1}   Colour: {2}".format(xPos,yPos,colour))
-					lower_red[0] = max(0,colour[0] - 10)
-					upper_red[0] = min(179,colour[0] + 10)
-					lower_red[1] = max(0,colour[1] - 10)
-					upper_red[1] = min(255,colour[1] + 10)
-					lower_red[2] = max(0,colour[2] - 20)
-					upper_red[2] = min(255,colour[2] + 20)
-																				
-				# Take image
-				image = frame.array				
-				# Convert to  HSV
-				imgHSV = cv.cvtColor(image, cv.COLOR_BGR2HSV)
-				if showMask:
-					self.camera.SetBrightness(brightness)				
-					imgMask = cv.inRange(imgHSV, lower_red, upper_red)
-					kernel = np.ones((3,3), np.uint8)
-					imgMask = cv.erode(imgMask, kernel, iterations=5)
-					imgMask = cv.dilate(imgMask, kernel, iterations=9)	
+					lower[0] = 120
+					upper[0] = 120
+					lower[1] = 255
+					upper[1] = 255
+					lower[2] = colour[2] - 10
+					upper[2] = colour[2] + 10
+					
+				if presses.l1:		
+					lower[2] = lower[2] + 1
+					upper[2] = upper[2] - 1
+				if presses.r1:					
+					lower[2] = lower[2] - 1
+					upper[2] = upper[2] + 1
+													
+				if showImage == 1:										
+					imgMask = cv.inRange(imgHSV, lower, upper)									
+					imgMask = cv.erode(imgMask, None, iterations=2)
+					imgMask = cv.dilate(imgMask, None, iterations=4)
+					text = "{0} {1}".format(lower, upper)
+					cv.putText(imgMask, text,(10, 20), cv.FONT_HERSHEY_TRIPLEX, 0.5, (255, 255, 255), 1)					
 					self.showMenuImage(imgMask)		
-				else:
+				elif showImage == 2:
+					colour = imgHSV[yPos, xPos];
+					text = "{0}".format(colour)
+					cv.putText(imgHSV,text,(10, 20), cv.FONT_HERSHEY_TRIPLEX, 0.5, (0, 0, 255), 1)
 					# Draw a circle at the joystick position
-					cv.circle(image,(xPos,yPos), 3, (255,255,255), -1)				
-					# Display for calibration
-					self.showMenuImage(image)		
-			else:
-							
-				image = frame.array	
-				# do stuff			
-				imgHSV = cv.cvtColor(image, cv.COLOR_BGR2HSV)   # Convert the captured frame from BGR to HSV
-				
-				# define range of red color in HSV
-				imgMask = cv.inRange(imgHSV, lower_red, upper_red)
-				
+					cv.circle(imgHSV,(xPos,yPos), 3, (0,0,0), -1)
+					self.showMenuImage(imgHSV)	
+				else:
+					colour = imgHSV[yPos, xPos];
+					text = "{0}".format(colour)
+					cv.putText(image,text,(10, 20), cv.FONT_HERSHEY_TRIPLEX, 0.5, (0, 0, 255), 1)
+					# Draw a circle at the joystick position
+					cv.circle(image,(xPos,yPos), 3, (255,255,255), -1)									
+					self.showMenuImage(image)							
+					
+			if running == True:				
 				# Threshold the HSV image to get only red colors			
-				kernel = np.ones((3,3), np.uint8)
-				imgMask = cv.erode(imgMask, kernel, iterations=5)
-				imgMask = cv.dilate(imgMask, kernel, iterations=9)	
+				imgMask = cv.inRange(imgHSV, lower, upper)				
+				#kernel = np.ones((3,3), np.uint8)
+				imgMask = cv.erode(imgMask, None, iterations=2)
+				imgMask = cv.dilate(imgMask, None, iterations=4)	
 				
 				imgMask, contours_blk, hierarchy_blk = cv.findContours(imgMask,cv.RETR_TREE,cv.CHAIN_APPROX_SIMPLE)
 	
@@ -482,7 +546,7 @@ class Controller():
 					for con_num in range(contours_blk_len):
 						area = cv.contourArea(contours_blk[con_num]);	
 						print("Index: {0}  Area: {1}".format(con_num, area))						
-						if area > 1500:							
+						if area > 500:							
 							cnt = contours_blk[con_num]
 							#x,y,w,h = cv.boundingRect(cnt)
 							#cv.rectangle(imgMask,(x,y),(x+w,y+h),(0,255,0),2)
@@ -496,16 +560,24 @@ class Controller():
 				# Can't see red, start scanning			
 				if xPos == -1 and yPos == -1:
 					self.bot.tilt_angle(angle)
-					angle = angle + 10
+					angle = angle + diff
+					if angle > 90:
+						diff = -10
+					if angle < -90:
+						diff = 10
 				else:
-					print("Found")					
+					print("Found")
+					# Drive towards red					
 					self.bot.servo_off()
 					
+				text = "{0} {1}".format(heading, distance)
+				cv.putText(imgMask, text,(10, 20), cv.FONT_HERSHEY_TRIPLEX, 0.5, (255, 255, 255), 1)
 				self.showMenuImage(imgMask)		
 				
 			frameNo += 1											
 			rawCapture.truncate(0)	
 	
+		self.bot.servo_off()
 		end = seconds()
 		print("Frames: {0} in {1} seconds or {2} frames per second".format(frameNo, end-start, frameNo / (end-start)))
 
@@ -626,7 +698,7 @@ class Controller():
 
 	def showMenuImage(self, menu_img):
 		cv.imshow('image',menu_img)
-		cv.waitKey(2)
+		cv.waitKey(1)
 		
 	def loadMenuImage(self, fileName):
 		img = cv.imread(fileName,cv.IMREAD_COLOR)

@@ -1,5 +1,8 @@
 import gpiozero
 import logging
+import os
+import smbus
+import time
 
 from Adafruit_BNO055 import BNO055
 import VL53L0X
@@ -36,6 +39,9 @@ class Robot(object):
 		self.right_dir = gpiozero.OutputDevice(M1DIR)
 		self.left_pwm = gpiozero.PWMOutputDevice(M2PWM)
 		self.left_dir = gpiozero.OutputDevice(M2DIR)
+				
+		self.battery()		
+		self.temperature()
 		
 		try:	
 			# Create a VL53L0X object
@@ -74,6 +80,28 @@ class Robot(object):
 		print('Accelerometer ID:   0x{0:02X}'.format(accel))
 		print('Magnetometer ID:    0x{0:02X}'.format(mag))
 		print('Gyroscope ID:       0x{0:02X}\n'.format(gyro))
+		
+	def battery(self):
+		bus = smbus.SMBus(1)
+		address = 0x48
+		bus.write_i2c_block_data(address, 0x01, [0xc3, 0x83])
+		time.sleep(0.1)
+		adc = bus.read_i2c_block_data(address,0x00,2)
+		voltage0 = adc
+
+		conversion_0 = (voltage0[1])+(voltage0[0]<<8)		
+		volts_0 = conversion_0 / 1116 #  Battery voltage through voltage divider
+		volts_0 = (round(volts_0,2))		
+		volts = "Volts {0}".format(volts_0)
+		print(volts)
+		return volts
+		
+	def temperature(self):
+		temp = os.popen('/opt/vc/bin/vcgencmd measure_temp').read()
+		temp = temp.replace("t","T")
+		temp = temp.replace("="," ")
+		print(temp)
+		return temp
 		
 	def readEuler( self ):
 		return self.bno.read_euler()
