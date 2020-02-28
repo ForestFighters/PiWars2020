@@ -434,12 +434,14 @@ class Controller():
 		running = False
 		mode = 0
 		
+		states = ["Hunting","Driving","Sleeping","Reversing"]
 		xPos = 0
 		yPos = 0
-		angle = -90
+		angle = 45
 		diff = 10
-		
-		frameNo = 1.0;
+		gear = 2
+		state = 0
+		frameNo = 1.0
 		start = seconds()	
 		for frame in self.camera.CaptureContinous(rawCapture):
 			presses = joystick.check_presses()
@@ -450,7 +452,8 @@ class Controller():
 			if presses.start:
 				xPos = -1
 				yPos = -1	
-				angle = -90	
+				angle = 45
+				diff = 0
 				mode = 0					
 				running = True
 			
@@ -481,10 +484,12 @@ class Controller():
 			# Get heading and distance
 			heading, roll, pitch = self.bot.readEuler()			
 			distance = self.bot.getDistance()
-						
-			if running == False:			
-				brightness = self.camera.SetBrightness(int(((joystick.ry + 1) * 100) /2))
 			
+			brightness = self.camera.SetBrightness(int(((joystick.ry + 1) * 100) /2))
+						
+			if running == False:
+				left_drive = 0
+				right_drive = 0									
 				if presses.square:
 					showImage = 2
 				if presses.triangle:
@@ -494,10 +499,10 @@ class Controller():
 				if presses.circle:
 					colour = imgHSV[yPos, xPos];
 					print("xPos,yPos: {0},{1}   Colour: {2}".format(xPos,yPos,colour))
-					lower[0] = 120
-					upper[0] = 120
-					lower[1] = 255
-					upper[1] = 255
+					lower[0] = colour[0] - 10
+					upper[0] = colour[0] + 10
+					lower[1] = colour[1] - 10
+					upper[1] = colour[1] + 10
 					lower[2] = colour[2] - 10
 					upper[2] = colour[2] + 10
 					
@@ -509,9 +514,10 @@ class Controller():
 					upper[2] = upper[2] + 1
 													
 				if showImage == 1:										
-					imgMask = cv.inRange(imgHSV, lower, upper)									
-					imgMask = cv.erode(imgMask, None, iterations=2)
-					imgMask = cv.dilate(imgMask, None, iterations=4)
+					imgMask = cv.inRange(imgHSV, lower, upper)	
+					kernel = np.ones((3,3), np.uint8)								
+					imgMask = cv.erode(imgMask, kernel, iterations=2)
+					imgMask = cv.dilate(imgMask, kernel, iterations=4)
 					text = "{0} {1}".format(lower, upper)
 					cv.putText(imgMask, text,(10, 20), cv.FONT_HERSHEY_TRIPLEX, 0.5, (255, 255, 255), 1)					
 					self.showMenuImage(imgMask)		
@@ -533,9 +539,9 @@ class Controller():
 			if running == True:				
 				# Threshold the HSV image to get only red colors			
 				imgMask = cv.inRange(imgHSV, lower, upper)				
-				#kernel = np.ones((3,3), np.uint8)
-				imgMask = cv.erode(imgMask, None, iterations=2)
-				imgMask = cv.dilate(imgMask, None, iterations=4)	
+				kernel = np.ones((3,3), np.uint8)
+				imgMask = cv.erode(imgMask, kernel, iterations=2)
+				imgMask = cv.dilate(imgMask, kernel, iterations=4)	
 				
 				imgMask, contours_blk, hierarchy_blk = cv.findContours(imgMask,cv.RETR_TREE,cv.CHAIN_APPROX_SIMPLE)
 	
@@ -555,28 +561,72 @@ class Controller():
 							yPos = int(M["m01"] / M["m00"])
 							cv.circle(imgMask,(xPos,yPos), 3, (0,0,255), -1)
 							break
-				
+							
+				# State = 0 - Spin on the spot with the camera at set position
+				# State = 1 - Found target and moving towards
+				# State = 2 - Sleep
+				# State = 3 - Reverse slightly
+				# states = ["Hunting","Driving","Sleeping","Reversing"]
 				print("xPos: {0}  yPos: {1}".format(xPos, yPos))
-				# Can't see red, start scanning			
-				if xPos == -1 and yPos == -1:
-					self.bot.tilt_angle(angle)
-					angle = angle + diff
-					if angle > 90:
-						diff = -10
-					if angle < -90:
-						diff = 10
-				else:
-					print("Found")
-					# Drive towards red					
-					self.bot.servo_off()
+				
+				# Can't see red, start turning
+				if state == 0 and (xPos == -1 and yPos == -1):				
+					#angle = 45
+					#self.bot.tilt_angle(angle)
+					left_drive = 0.5
+					right_drive = -0.5			
 					
-				text = "{0} {1}".format(heading, distance)
+				# Found red
+				elif state == 0 and (xPos != -1 and yPos != -1):
+					left_drive = 0
+					right_drive = 0					
+					state = 1
+								
+				# Drive towards red
+				elif state == 1 and (xPos != -1 and yPos != -1):
+					error = int(xPos - hw) 
+					left_drive = 1.0
+					if error < -4:
+						left_drive = left_drive - ( -error / 170 )
+			
+					right_drive = 1.0	
+					if error > 4:
+						right_drive = right_drive - ( error / 170 )
+				
+				# Driven over it	
+				elif state == 1 and xPos == -1 and yPos == -1:
+					#self.bot.tilt_angle(angle)
+					#angle = angle + diff
+					#if angle > 90:
+					#	diff = -10
+					#if angle < -90:
+					#	diff = 10	
+					state = 2
+				
+				# sleep assuming we are over a red square	
+				elif state == 2:
+					time.sleep(1)
+					left_drive = 0
+					right_drive = 0
+					state = 3
+				
+				# Reverse a little bit and revert to seeing
+				elif state == 3:
+					left_drive = -0.5					
+					right_drive = -0.5
+					state = 0
+					
+				
+				
+				self.bot.move(left_drive, right_drive, gear)	
+				text = "{0} {1} {2} {3} {4}".format(heading, distance,states[state], xPos, yPos)
 				cv.putText(imgMask, text,(10, 20), cv.FONT_HERSHEY_TRIPLEX, 0.5, (255, 255, 255), 1)
 				self.showMenuImage(imgMask)		
 				
 			frameNo += 1											
 			rawCapture.truncate(0)	
 	
+		self.bot.stop()
 		self.bot.servo_off()
 		end = seconds()
 		print("Frames: {0} in {1} seconds or {2} frames per second".format(frameNo, end-start, frameNo / (end-start)))
@@ -618,9 +668,8 @@ class Controller():
 			if gear > 5:
 				gear = 5			
 				
-			image = frame.array	
-			
-			Blackline = cv.inRange(image, (0,0,0), (60,60,60))	
+			image = frame.array				
+			Blackline = cv.inRange(image, (200,200,200), (255,255,255))	# was 0,0,0 - 60,60,60
 			kernel = np.ones((3,3), np.uint8)
 			Blackline = cv.erode(Blackline, kernel, iterations=5)
 			Blackline = cv.dilate(Blackline, kernel, iterations=9)	
