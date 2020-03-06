@@ -507,31 +507,31 @@ class Controller():
 					upper[2] = colour[2] + 10
 					
 				if presses.l1:		
-					lower[2] = lower[2] + 1
-					upper[2] = upper[2] - 1
+					lower[0] = lower[0] + 1
+					upper[0] = upper[0] - 1
 				if presses.r1:					
-					lower[2] = lower[2] - 1
-					upper[2] = upper[2] + 1
+					lower[0] = lower[0] - 1
+					upper[0] = upper[0] + 1
 													
 				if showImage == 1:										
 					imgMask = cv.inRange(imgHSV, lower, upper)	
-					kernel = np.ones((3,3), np.uint8)								
+					kernel = np.ones((5,5), np.uint8)								
 					imgMask = cv.erode(imgMask, kernel, iterations=2)
 					imgMask = cv.dilate(imgMask, kernel, iterations=4)
 					text = "{0} {1}".format(lower, upper)
-					cv.putText(imgMask, text,(10, 20), cv.FONT_HERSHEY_TRIPLEX, 0.5, (255, 255, 255), 1)					
+					cv.putText(imgMask, text,(10, 20), cv.FONT_HERSHEY_PLAIN, 0.8, (255, 255, 255), 1)					
 					self.showMenuImage(imgMask)		
 				elif showImage == 2:
 					colour = imgHSV[yPos, xPos];
 					text = "{0}".format(colour)
-					cv.putText(imgHSV,text,(10, 20), cv.FONT_HERSHEY_TRIPLEX, 0.5, (0, 0, 255), 1)
+					cv.putText(imgHSV,text,(10, 20), cv.FONT_HERSHEY_PLAIN, 0.8, (0, 0, 255), 1)
 					# Draw a circle at the joystick position
 					cv.circle(imgHSV,(xPos,yPos), 3, (0,0,0), -1)
 					self.showMenuImage(imgHSV)	
 				else:
 					colour = imgHSV[yPos, xPos];
 					text = "{0}".format(colour)
-					cv.putText(image,text,(10, 20), cv.FONT_HERSHEY_TRIPLEX, 0.5, (0, 0, 255), 1)
+					cv.putText(image,text,(10, 20), cv.FONT_HERSHEY_PLAIN, 0.8, (0, 0, 255), 1)
 					# Draw a circle at the joystick position
 					cv.circle(image,(xPos,yPos), 3, (255,255,255), -1)									
 					self.showMenuImage(image)							
@@ -539,7 +539,7 @@ class Controller():
 			if running == True:				
 				# Threshold the HSV image to get only red colors			
 				imgMask = cv.inRange(imgHSV, lower, upper)				
-				kernel = np.ones((3,3), np.uint8)
+				kernel = np.ones((5,5), np.uint8)
 				imgMask = cv.erode(imgMask, kernel, iterations=2)
 				imgMask = cv.dilate(imgMask, kernel, iterations=4)	
 				
@@ -552,7 +552,7 @@ class Controller():
 					for con_num in range(contours_blk_len):
 						area = cv.contourArea(contours_blk[con_num]);	
 						print("Index: {0}  Area: {1}".format(con_num, area))						
-						if area > 500:							
+						if area > 256:							
 							cnt = contours_blk[con_num]
 							#x,y,w,h = cv.boundingRect(cnt)
 							#cv.rectangle(imgMask,(x,y),(x+w,y+h),(0,255,0),2)
@@ -567,14 +567,14 @@ class Controller():
 				# State = 2 - Sleep
 				# State = 3 - Reverse slightly
 				# states = ["Hunting","Driving","Sleeping","Reversing"]
-				print("xPos: {0}  yPos: {1}".format(xPos, yPos))
+				#print("xPos: {0}  yPos: {1}".format(xPos, yPos))
 				
 				# Can't see red, start turning
 				if state == 0 and (xPos == -1 and yPos == -1):				
 					#angle = 45
 					#self.bot.tilt_angle(angle)
-					left_drive = 0.5
-					right_drive = -0.5			
+					left_drive = 0.75
+					right_drive = -0.75			
 					
 				# Found red
 				elif state == 0 and (xPos != -1 and yPos != -1):
@@ -605,6 +605,7 @@ class Controller():
 				
 				# sleep assuming we are over a red square	
 				elif state == 2:
+					self.bot.stop()
 					time.sleep(1)
 					left_drive = 0
 					right_drive = 0
@@ -619,8 +620,8 @@ class Controller():
 				
 				
 				self.bot.move(left_drive, right_drive, gear)	
-				text = "{0} {1} {2} {3} {4}".format(heading, distance,states[state], xPos, yPos)
-				cv.putText(imgMask, text,(10, 20), cv.FONT_HERSHEY_TRIPLEX, 0.5, (255, 255, 255), 1)
+				text = "{0} {1} {2} {3} {4} {5}".format(heading, distance,states[state], xPos, yPos, gear)
+				cv.putText(imgMask, text,(10, 20), cv.FONT_HERSHEY_PLAIN, 0.8, (255, 255, 255), 1)
 				self.showMenuImage(imgMask)		
 				
 			frameNo += 1											
@@ -645,6 +646,8 @@ class Controller():
 		
 		running = False
 		self.bot.servo_off()
+		
+		blackbox = None
 		
 		frameNo = 1.0;
 		start = seconds()	
@@ -705,37 +708,38 @@ class Controller():
 				elif contours_blk_len > 1:		
 					(y_highest,con_highest,x_min, y_min) = canditates[contours_blk_len-1]		
 					blackbox = cv.minAreaRect(contours_blk[con_highest])	
-				
-				
-			(x_min, y_min), (w_min, h_min), ang = blackbox
-			if ang < -45 :
-				ang = 90 + ang
-			if w_min < h_min and ang > 0:	  
-				ang = (90-ang)*-1
-			if w_min > h_min and ang < 0:
-				ang = 90 + ang	  
-				
-			setpoint = hw
-			error = int(x_min - setpoint) 
-			ang = int(ang)	 
-			box = cv.boxPoints(blackbox)
-			box = np.int0(box)
-			cv.drawContours(image,[box],0,(0,0,255),3)	 			
-			cv.line(image, (int(x_min),200 ), (int(x_min),250 ), (255,0,0),3)
-
-			left_drive = 1.0
-			if error < -4:
-				left_drive = left_drive - ( -error / 170 )
 			
-			right_drive = 1.0	
-			if error > 4:
-				right_drive = right_drive - ( error / 170 )
+				
+			if blackbox is not None:	
+				(x_min, y_min), (w_min, h_min), ang = blackbox
+				if ang < -45 :
+					ang = 90 + ang
+				if w_min < h_min and ang > 0:	  
+					ang = (90-ang)*-1
+				if w_min > h_min and ang < 0:
+					ang = 90 + ang	  
+					
+				setpoint = hw
+				error = int(x_min - setpoint) 
+				ang = int(ang)	 
+				box = cv.boxPoints(blackbox)
+				box = np.int0(box)
+				cv.drawContours(image,[box],0,(0,0,255),3)	 			
+				cv.line(image, (int(x_min),200 ), (int(x_min),250 ), (255,0,0),3)
+
+				left_drive = 1.0
+				if error < -4:
+					left_drive = left_drive - ( -error / 170 )
+				
+				right_drive = 1.0	
+				if error > 4:
+					right_drive = right_drive - ( error / 170 )
 						
-			text = "g = {0} : l = {1:.2} : r = {2:.2}".format(gear, left_drive, right_drive)
-			cv.putText(image,text,(10, 20), cv.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255))		
+				text = "g = {0} : l = {1:.2} : r = {2:.2}".format(gear, left_drive, right_drive)
+				cv.putText(image,text,(10, 20), cv.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255))		
 						
-			if running:
-				self.bot.turn(error, gear)			
+				if running:
+					self.bot.turn(error, gear)			
 			
 			frameNo += 1								
 			self.showMenuImage(image)		

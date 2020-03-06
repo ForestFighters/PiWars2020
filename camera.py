@@ -18,7 +18,7 @@ class Camera(object):
 			self.height = h
 			self.camera = PiCamera(
 				resolution=(self.width, self.height),
-				framerate=90,
+				framerate=30,
 				sensor_mode=7,
 				)
 			
