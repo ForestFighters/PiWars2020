@@ -423,8 +423,8 @@ class Controller():
 		
 		showImage = 0
 		colour = np.array([0, 0, 0])
-		lower = np.array([112, 255, 20])
-		upper = np.array([112, 255, 40])
+		lower = np.array([110,50,50])
+		upper = np.array([130,255,255])
 		
 		#colour_arrays = COLOURS["red"]
 		#lower = np.array(colour_arrays[0], dtype = "uint8")

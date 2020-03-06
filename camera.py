@@ -31,6 +31,9 @@ class Camera(object):
 
 	def hasCamera( self ):
 		return self.hasCamera
+		
+	def Rotate( self, angle ):
+		self.camera.rotation = angle
 					
 	def CaptureContinous( self, rawCapture ):
 		if self.hasCamera:
