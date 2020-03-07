@@ -64,6 +64,7 @@ class Controller():
 		exit_img = self.loadMenuImage('/home/pi/Pictures/Exit.jpg')
 		halt_img = self.loadMenuImage('/home/pi/Pictures/Halt.jpg')				
 		test_img = self.loadMenuImage('/home/pi/Pictures/Testing.jpg')
+		track_img = self.loadMenuImage('/home/pi/Pictures/Track.jpg')
 		gear = 2
 		menu = 1		
 		MIN_MENU = 1
@@ -94,7 +95,22 @@ class Controller():
 									prev = 7								
 								else:
 									self.showMenuImage(menu_img)
-									running = self.doMenu( menu, joystick, gear )								
+									running = self.doMenu( menu, joystick, gear, test_img)
+									if menu == 1:
+										self.showMenuImage(remote_img)			
+									if menu == 2:						
+										self.showMenuImage(lava_img)												
+									if menu == 3:			
+										self.showMenuImage(mine_img)												
+									if menu == 4:			
+										self.showMenuImage(maze_img)												
+									if menu == 5:			
+										self.showMenuImage(exit_img)												
+									if menu == 6:
+										self.showMenuImage(halt_img)									
+									if menu == 7:
+										self.showMenuImage(test_img)
+																	
 									prev = 0							
 																
 							if joystick.presses.dright:
@@ -145,7 +161,7 @@ class Controller():
 				
 		cv.destroyAllWindows()
 		
-	def doMenu(self, menu, joystick, gear ):
+	def doMenu(self, menu, joystick, gear, image ):
 		if menu == 1:
 			self.remoteNoCamera( joystick, gear )	
 			return True
@@ -155,8 +171,8 @@ class Controller():
 		if menu == 3:			
 			self.mine( joystick, gear )
 			return True
-		if menu == 4:			
-			self.maze( joystick, gear )
+		if menu == 4:						
+			self.maze( joystick, gear, image )
 			return True
 		if menu == 5:			
 			return False
@@ -301,14 +317,14 @@ class Controller():
 			
 		self.bot.stop()		
 
-	def maze(self, joystick, gear):
+	def maze(self, joystick, gear, image):
 		self.show("Escape Route mode")
-		
-		if self.camera.hasCamera == False:			
-			return
+		image = self.loadMenuImage('/home/pi/Pictures/Track.jpg')
+		#if self.camera.hasCamera == False:			
+		#	return
 				
-		rawCapture = PiRGBArray( self.camera, size=(self.w, self.h))	
-		time.sleep(0.1)
+		#rawCapture = PiRGBArray( self.camera, size=(self.w, self.h))	
+		#time.sleep(0.1)
 		
 		# State 0		
 		# Travel until 276
@@ -342,6 +358,9 @@ class Controller():
 		
 		# State 10
 		# Travel until 100
+		
+		left_drive = 1
+		right_drive = 1	
 			
 		firsttime = True
 		offset = 0
@@ -349,16 +368,20 @@ class Controller():
 		state = 0 
 		running = False
 		count = 0 	
-		for frame in self.camera.CaptureContinous(rawCapture):		
+		turn_speed = 0.8
+		target = 0.0
+		adjust = 0.0
+		while True:
+		# for frame in self.camera.CaptureContinous(rawCapture):		
 			presses = joystick.check_presses()
 			if presses.home:				
 				running = False
 				break					
 			
 			if presses.start:
-				running = True
+				running = not running
 				
-			image = frame.array	
+			#image = frame.array	
 			
 			# Read the Euler angles for heading, roll, pitch (all in degrees).
 			heading, roll, pitch = self.bot.readEuler()			
@@ -369,45 +392,111 @@ class Controller():
 				offset = 360 - heading
 				firsttime = False
 			
-			heading += offset
+			# heading += offset
 			
-			text = "state={0} : angle={1:5.2} : mm={2}".format(state, heading, distance)
-			cv.putText(image,text,(10, 20), cv.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255))			
+			# Target 0/360
+			if state == 0 and distance > 276:				
+				adjust, left_drive, right_drive = self.getAdjustedDrive( 0.0, heading, distance )				
+			elif state == 0 and distance <= 276:							
+				# Red 438, 434 - 208, 434	
+				cv.line(image, (438, 434),( 208, 434), (0,0,255),5)
+				state = 1
+			# Turn Right - Target 90
+			elif state == 1 and (heading > 270 or heading < 90 ):				
+				left_drive = turn_speed
+				right_drive = -turn_speed
+			elif state == 1 and (heading >= 90 and heading < 180):					
+				left_drive = 0
+				right_drive = 0
+				state = 2				
+			elif state == 2 and distance > 174:								
+				adjust, left_drive, right_drive = self.getAdjustedDrive( 90.0, heading, distance )				
+			elif state == 2 and distance <= 174:			
+				# 208, 434 - 208, 298
+				cv.line(image, (208, 434),( 208, 298), (0,0,255),5)	
+				state = 3
+			# Turn Right - Target 180
+			elif state == 3 and heading < 180:
+				left_drive = turn_speed
+				right_drive = -turn_speed
+			elif state == 3 and heading >= 180:				
+				left_drive = 0
+				right_drive = 0
+				state = 4				
+			elif state == 4 and distance > 100:				
+				adjust, left_drive, right_drive = self.getAdjustedDrive( 180.0, heading, distance )				
+			elif state == 4 and distance <= 100:				
+				# 208, 298 - 404, 298
+				cv.line(image, (208, 298),( 404, 298), (0,0,255),5)
+				state = 5
+			# Turn Left - Target 90
+			elif state == 5 and heading > 90:
+				left_drive = -turn_speed
+				right_drive = turn_speed
+			elif state == 5 and heading <= 90:				
+				left_drive = 0
+				right_drive = 0
+				state = 6				
+			elif state == 6 and distance > 174:				
+				adjust, left_drive, right_drive = self.getAdjustedDrive( 90.0, heading, distance )				
+			elif state == 6 and distance <= 174:
+				# 404, 298 - 404, 142
+				cv.line(image, (404, 298),( 404, 142), (0,0,255),5)
+				state = 7
+			# Turn Left - Target 0/360
+			elif state == 7 and ( heading >= 0 and heading < 90 ):
+				left_drive = -turn_speed
+				right_drive = turn_speed
+			elif state == 7 and ( heading >= 270 and heading <= 360 ):
+				left_drive = 0
+				right_drive = 0
+				state = 8							
+			elif state == 8 and distance > 276:				
+				adjust, left_drive, right_drive = self.getAdjustedDrive( 0.0, heading, distance )
+			elif state == 8 and distance <= 276:
+				# 404, 142 - 220, 142
+				cv.line(image, (404, 142),( 220, 142), (0,0,255),5)
+				state = 9
+			# Turn Right - Target 90+ diff
+			elif state == 9 and (heading > 270 or heading < 90):
+				left_drive = turn_speed
+				right_drive = -turn_speed
+			elif state == 9 and heading >= 90:
+				left_drive = 0
+				right_drive = 0
+				state = 10
+			elif state == 10:
+				# 220, 142 - 220, 56
+				cv.line(image, (220, 142),( 220, 56), (0,0,255),5)
+				adjust, left_drive, right_drive = self.getAdjustedDrive( 90.0, heading, distance )
+				
+			drive = "FWD"
+			if left_drive < right_drive:
+				drive = "LFT"
+			elif left_drive > right_drive:
+				drive = "RGT"
+				
+			cv.rectangle(image,(0,0),(640,50),(0,0,0),-1);	
+			text = "st={0} {1:.2f}({2:.2f}) {3}mm {4}".format(state, heading, adjust, distance, drive)
+			cv.putText(image,text,(10, 30), cv.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255))			
 		
 			self.showMenuImage(image)		
-			rawCapture.truncate(0)	
-			
-			if running:
-				if state == 0 and distance < 276:
-					left_drive = 1
-					right_drive = 1					
-					state = 1
-				elif state == 1 and heading < 90:
-					left_drive = -0.5
-					right_drive = +0.5
-					state = 2				
-				elif state == 2 and distance < 174:
-					left_drive = 1
-					right_drive = 1	
-					state = 3
-				elif state == 3 and heading < 180:
-					left_drive = -0.5
-					right_drive = +0.5
-					state = 4				
-				elif state == 3 and distance < 100:
-					running = False
-					break				
-				
+			#rawCapture.truncate(0)				
+						
+			if running:		
 				self.bot.move(left_drive, right_drive, gear)
+			else:
+				self.bot.stop()			
+				
+			time.sleep(self.bot.getInterval())	
 			
-			self.bot.getInterval()	
 			
 		self.bot.stop()
 		cv.namedWindow('image', cv.WND_PROP_FULLSCREEN)
 		cv.setWindowProperty('image',cv.WND_PROP_FULLSCREEN,cv.WINDOW_FULLSCREEN)	
 		cv.waitKey(10)
 				
-	def mine(self, joystick, gear):
+	def mine(self, joystickright_drive, gear):
 		self.show("Mine Sweeper mode")
 		
 		if self.camera.hasCamera == False:
@@ -672,7 +761,9 @@ class Controller():
 				gear = 5			
 				
 			image = frame.array				
-			Blackline = cv.inRange(image, (200,200,200), (255,255,255))	# was 0,0,0 - 60,60,60
+			# Actually white line 
+			# Blackline = cv.inRange(image, (200,200,200), (255,255,255)) # Use for white lines	
+			Blackline = cv.inRange(image, (0,0,0), (60,60,60)) # Use for black lines
 			kernel = np.ones((3,3), np.uint8)
 			Blackline = cv.erode(Blackline, kernel, iterations=5)
 			Blackline = cv.dilate(Blackline, kernel, iterations=9)	
@@ -749,13 +840,33 @@ class Controller():
 		end = seconds()
 		print("Frames: {0} in {1} seconds or {2} frames per second".format(frameNo, end-start, frameNo / (end-start)))
 
+	def getAdjustedDrive( self, target, heading, dist ):
+		
+		diff = 0.0
+		if target == 0.0 and heading > 180 and heading < 360:
+			diff = 360.0 - heading		
+		else:
+			diff = target - heading
+		
+		diff = diff / 45.0
+		
+		left_drive = 1
+		right_drive = 1	
+		if diff < 0:
+			left_drive = left_drive + diff
+		elif diff > 0:
+			right_drive = right_drive - diff
+			
+		print('target={0:.2f} heading={1:.2f} diff={2:.2f} ldr={3:.2f} rdr={4:.2f} {5:.2f}'.format(target, heading, diff, left_drive, right_drive, dist))
+		return diff, left_drive, right_drive
+	
 	def showMenuImage(self, menu_img):
 		cv.imshow('image',menu_img)
 		cv.waitKey(1)
 		
 	def loadMenuImage(self, fileName):
 		img = cv.imread(fileName,cv.IMREAD_COLOR)
-		img = cv.resize(img,(1280,960), interpolation = cv.INTER_CUBIC)			
+		img = cv.resize(img,(640,480), interpolation = cv.INTER_CUBIC)			# was 1280 960
 		return img
 		
 	def writePNG(self, filename, y_data):
