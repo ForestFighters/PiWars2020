@@ -110,7 +110,10 @@ class Robot(object):
 		return (self.timing/1000000.00)
 		
 	def getDistance( self ):
-		return self.tof.get_distance()
+		dist = self.tof.get_distance()
+		if dist < 1 or dist > 2000:
+			dist = 8192
+		return dist
 			
 	def turnTo( self, angle, heading ):		
 		self.stop()
