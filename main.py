@@ -400,6 +400,8 @@ class Controller():
 			elif state == 0 and distance <= 276:							
 				# Red 438, 434 - 208, 434	
 				cv.line(image, (438, 434),( 208, 434), (0,0,255),5)
+				left_drive = 0
+				right_drive = 0
 				state = 1
 			# Turn Right - Target 90
 			elif state == 1 and (heading > 270 or heading < 90 ):				
@@ -408,12 +410,15 @@ class Controller():
 			elif state == 1 and (heading >= 90 and heading < 180):					
 				left_drive = 0
 				right_drive = 0
+				cv.circle(image, (208, 434), 8, (255,0,0),8)
 				state = 2				
 			elif state == 2 and distance > 174:								
 				adjust, left_drive, right_drive = self.getAdjustedDrive( 90.0, heading, distance )				
 			elif state == 2 and distance <= 174:			
 				# 208, 434 - 208, 298
 				cv.line(image, (208, 434),( 208, 298), (0,0,255),5)	
+				left_drive = 0
+				right_drive = 0
 				state = 3
 			# Turn Right - Target 180
 			elif state == 3 and heading < 180:
@@ -422,12 +427,15 @@ class Controller():
 			elif state == 3 and heading >= 180:				
 				left_drive = 0
 				right_drive = 0
+				cv.circle(image, (208, 298), 8, (255,0,0),8)
 				state = 4				
 			elif state == 4 and distance > 100:				
 				adjust, left_drive, right_drive = self.getAdjustedDrive( 180.0, heading, distance )				
 			elif state == 4 and distance <= 100:				
 				# 208, 298 - 404, 298
 				cv.line(image, (208, 298),( 404, 298), (0,0,255),5)
+				left_drive = 0
+				right_drive = 0
 				state = 5
 			# Turn Left - Target 90
 			elif state == 5 and heading > 90:
@@ -436,12 +444,15 @@ class Controller():
 			elif state == 5 and heading <= 90:				
 				left_drive = 0
 				right_drive = 0
+				cv.circle(image, (404, 298), 8, (255,0,0),8)
 				state = 6				
 			elif state == 6 and distance > 174:				
 				adjust, left_drive, right_drive = self.getAdjustedDrive( 90.0, heading, distance )				
 			elif state == 6 and distance <= 174:
 				# 404, 298 - 404, 142
 				cv.line(image, (404, 298),( 404, 142), (0,0,255),5)
+				left_drive = 0
+				right_drive = 0
 				state = 7
 			# Turn Left - Target 0/360
 			elif state == 7 and ( heading >= 0 and heading < 90 ):
@@ -450,12 +461,15 @@ class Controller():
 			elif state == 7 and ( heading >= 270 and heading <= 360 ):
 				left_drive = 0
 				right_drive = 0
+				cv.circle(image, (404, 142), 8, (255,0,0),8)
 				state = 8							
 			elif state == 8 and distance > 276:				
 				adjust, left_drive, right_drive = self.getAdjustedDrive( 0.0, heading, distance )
 			elif state == 8 and distance <= 276:
 				# 404, 142 - 220, 142
 				cv.line(image, (404, 142),( 220, 142), (0,0,255),5)
+				left_drive = 0
+				right_drive = 0
 				state = 9
 			# Turn Right - Target 90+ diff
 			elif state == 9 and (heading > 270 or heading < 90):
@@ -464,6 +478,7 @@ class Controller():
 			elif state == 9 and heading >= 90:
 				left_drive = 0
 				right_drive = 0
+				cv.circle(image, (220, 142), 8, (255,0,0),8)
 				state = 10
 			elif state == 10:
 				# 220, 142 - 220, 56
@@ -496,7 +511,7 @@ class Controller():
 		cv.setWindowProperty('image',cv.WND_PROP_FULLSCREEN,cv.WINDOW_FULLSCREEN)	
 		cv.waitKey(10)
 				
-	def mine(self, joystickright_drive, gear):
+	def mine(self, joystick, gear):
 		self.show("Mine Sweeper mode")
 		
 		if self.camera.hasCamera == False:
@@ -604,9 +619,15 @@ class Controller():
 													
 				if showImage == 1:										
 					imgMask = cv.inRange(imgHSV, lower, upper)	
-					kernel = np.ones((5,5), np.uint8)								
-					imgMask = cv.erode(imgMask, kernel, iterations=2)
-					imgMask = cv.dilate(imgMask, kernel, iterations=4)
+					# kernel = np.ones((5,5), np.uint8)								
+					# imgMask = cv.erode(imgMask, kernel, iterations=2)
+					# imgMask = cv.dilate(imgMask, kernel, iterations=4)
+					imgMask = cv.erode(imgMask, cv.getStructuringElement(cv.MORPH_ELLIPSE, (5, 5)))
+					imgMask = cv.dilate(imgMask, cv.getStructuringElement(cv.MORPH_ELLIPSE, (5, 5)))
+		
+					imgMask = cv.dilate(imgMask, cv.getStructuringElement(cv.MORPH_ELLIPSE, (5, 5)))
+					imgMask = cv.erode(imgMask, cv.getStructuringElement(cv.MORPH_ELLIPSE, (5, 5)))
+		
 					text = "{0} {1}".format(lower, upper)
 					cv.putText(imgMask, text,(10, 20), cv.FONT_HERSHEY_PLAIN, 0.8, (255, 255, 255), 1)					
 					self.showMenuImage(imgMask)		
@@ -628,9 +649,14 @@ class Controller():
 			if running == True:				
 				# Threshold the HSV image to get only red colors			
 				imgMask = cv.inRange(imgHSV, lower, upper)				
-				kernel = np.ones((5,5), np.uint8)
-				imgMask = cv.erode(imgMask, kernel, iterations=2)
-				imgMask = cv.dilate(imgMask, kernel, iterations=4)	
+				# kernel = np.ones((5,5), np.uint8)
+				# imgMask = cv.erode(imgMask, kernel, iterations=2)
+				# imgMask = cv.dilate(imgMask, kernel, iterations=4)
+				imgMask = cv.erode(imgMask, cv.getStructuringElement(cv.MORPH_ELLIPSE, (5, 5)))
+				imgMask = cv.dilate(imgMask, cv.getStructuringElement(cv.MORPH_ELLIPSE, (5, 5)))
+		
+				imgMask = cv.dilate(imgMask, cv.getStructuringElement(cv.MORPH_ELLIPSE, (5, 5)))
+				imgMask = cv.erode(imgMask, cv.getStructuringElement(cv.MORPH_ELLIPSE, (5, 5)))		
 				
 				imgMask, contours_blk, hierarchy_blk = cv.findContours(imgMask,cv.RETR_TREE,cv.CHAIN_APPROX_SIMPLE)
 	
