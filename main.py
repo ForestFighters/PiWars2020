@@ -527,7 +527,7 @@ class Controller():
 		
 		showImage = 0
 		colour = np.array([0, 0, 0])
-		lower = np.array([110,50,50])
+		lower = np.array([110,38,34])
 		upper = np.array([130,255,255])
 		
 		#colour_arrays = COLOURS["red"]
@@ -605,10 +605,10 @@ class Controller():
 					print("xPos,yPos: {0},{1}   Colour: {2}".format(xPos,yPos,colour))
 					lower[0] = colour[0] - 10
 					upper[0] = colour[0] + 10
-					lower[1] = colour[1] - 10
-					upper[1] = colour[1] + 10
-					lower[2] = colour[2] - 10
-					upper[2] = colour[2] + 10
+					lower[1] = 50  # colour[1] - 10
+					upper[1] = 255 # colour[1] + 10
+					lower[2] = 50  # colour[2] - 10
+					upper[2] = 255 # colour[2] + 10
 					
 				if presses.l1:		
 					lower[0] = lower[0] + 1
@@ -627,8 +627,28 @@ class Controller():
 		
 					imgMask = cv.dilate(imgMask, cv.getStructuringElement(cv.MORPH_ELLIPSE, (5, 5)))
 					imgMask = cv.erode(imgMask, cv.getStructuringElement(cv.MORPH_ELLIPSE, (5, 5)))
+					
+					imgMask, contours_blk, hierarchy_blk = cv.findContours(imgMask,cv.RETR_TREE,cv.CHAIN_APPROX_SIMPLE)
+	
+					contours_blk_len = len(contours_blk)				
+					xPos = -1
+					yPos = -1	
+					area = 0
+					if contours_blk_len > 0 :
+						for con_num in range(contours_blk_len):
+							area = cv.contourArea(contours_blk[con_num]);	
+							print("Index: {0}  Area: {1}".format(con_num, area))						
+							if area > 256:							
+								cnt = contours_blk[con_num]
+								#x,y,w,h = cv.boundingRect(cnt)
+								#cv.rectangle(imgMask,(x,y),(x+w,y+h),(0,255,0),2)
+								M = cv.moments(cnt)
+								xPos = int(M["m10"] / M["m00"])
+								yPos = int(M["m01"] / M["m00"])
+								cv.circle(imgMask,(xPos,yPos), 3, (0,0,255), -1)
+								break
 		
-					text = "{0} {1}".format(lower, upper)
+					text = "{0} {1} {2}".format(lower, upper, area)
 					cv.putText(imgMask, text,(10, 20), cv.FONT_HERSHEY_PLAIN, 0.8, (255, 255, 255), 1)					
 					self.showMenuImage(imgMask)		
 				elif showImage == 2:
@@ -686,8 +706,6 @@ class Controller():
 				
 				# Can't see red, start turning
 				if state == 0 and (xPos == -1 and yPos == -1):				
-					#angle = 45
-					#self.bot.tilt_angle(angle)
 					left_drive = 0.75
 					right_drive = -0.75			
 					
