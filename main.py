@@ -16,6 +16,7 @@ from argparse import ArgumentParser
 import logging
 import os
 from time import sleep
+from rectangle import Rectangle 
 
 #from picamera import PiCamera
 from picamera.array import PiRGBArray
@@ -36,6 +37,7 @@ LOGGER = logging.getLogger(__name__)
 
 class Controller():
 	mode = None
+	button = 0
 		
 	def __init__(self):
 				
@@ -65,10 +67,11 @@ class Controller():
 		halt_img = self.loadMenuImage('/home/pi/Pictures/Halt.jpg')				
 		test_img = self.loadMenuImage('/home/pi/Pictures/Testing.jpg')
 		track_img = self.loadMenuImage('/home/pi/Pictures/Track.jpg')
+		reboot_img = self.loadMenuImage('/home/pi/Pictures/Reboot.jpg')
 		gear = 2
 		menu = 1		
 		MIN_MENU = 1
-		MAX_MENU = 7
+		MAX_MENU = 8
 		
 		running = True
 		timing = 20000		
@@ -110,6 +113,8 @@ class Controller():
 										self.showMenuImage(halt_img)									
 									if menu == 7:
 										self.showMenuImage(test_img)
+									if menu == 8:
+										self.showMenuImage(reboot_img)
 																	
 									prev = 0							
 																
@@ -140,6 +145,8 @@ class Controller():
 									self.showMenuImage(halt_img)									
 								if menu == 7:
 									self.showMenuImage(test_img)
+								if menu == 8:
+									self.showMenuImage(reboot_img)
 									
 							prev = menu 								
 
@@ -181,23 +188,28 @@ class Controller():
 			# We don't expect to get here
 			return False	
 		if menu == 7:	
-			self.testing()	
+			self.testing(image)	
 			return True
+		if menu == 8:
+			self.reboot()
+			# We don't expect to get here
+			return False	
 			
-			
+	def reboot(self):
+		self.show("Reboot")		
+		os.system("sudo reboot")		
+		
 	def shutdown(self):
 		self.show("Shutdown")		
 		os.system("sudo halt")		
 		
-	def testing(self, img):
+	def testing(self, image):
+		image = self.loadMenuImage('/home/pi/Pictures/Testing.jpg')
 		temp = self.bot.temperature()
-		volts = self.bot.battery()
-	
-		cv.putText(img,"            ",(50, 60),cv.FONT_HERSHEY_TRIPLEX, 2, (0, 0, 255), 5)	
-		cv.putText(img,"            ",(50, 120),cv.FONT_HERSHEY_TRIPLEX, 2, (0, 0, 255), 5)
-		cv.putText(img,temp,(50, 60), cv.FONT_HERSHEY_TRIPLEX, 2, (0, 0, 255), 5)	
-		cv.putText(img,volts,(50, 120), cv.FONT_HERSHEY_TRIPLEX, 2, (0, 0, 255), 5)
-		self.showMenuImage(img)
+		volts = self.bot.battery()	
+		cv.putText(image,temp,(50, 60), cv.FONT_HERSHEY_TRIPLEX, 2, (0, 0, 255), 5)	
+		cv.putText(image,volts,(50, 120), cv.FONT_HERSHEY_TRIPLEX, 2, (0, 0, 255), 5)
+		self.showMenuImage(image)
 				
 	# Pi Noon, Zombie Shoot, Temple of Doom, Eco Disaster	
 	def remoteNoCamera(self, joystick, gear):
